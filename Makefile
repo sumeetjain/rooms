@@ -34,7 +34,10 @@ run: app
 
 test:
 ifeq ($(DEVELOPER_DIR),$(CLT))
+	# The Command Line Tools ship _Testing_Foundation without its module, so the
+	# Testing + Foundation overlay can't load; leave it out (the tests don't need it).
 	swift test \
+	  -Xswiftc -Xfrontend -Xswiftc -disable-cross-import-overlays \
 	  -Xswiftc -F -Xswiftc $(CLT)/Library/Developer/Frameworks \
 	  -Xlinker -F -Xlinker $(CLT)/Library/Developer/Frameworks \
 	  -Xlinker -rpath -Xlinker $(CLT)/Library/Developer/Frameworks \
