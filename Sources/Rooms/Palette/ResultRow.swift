@@ -7,6 +7,7 @@ final class ResultRow: NSView {
     /// Room rows only: the ⓧ shown on the selected row, and the right-click menu.
     var onDelete: (() -> Void)? { didSet { deleteButton.isHidden = !(isSelected && onDelete != nil) } }
     var onEdit: (() -> Void)?
+    var onDuplicate: (() -> Void)?
     var isSelected = false { didSet { if isSelected != oldValue { applyColors() } } }
 
     let isInteractive: Bool
@@ -99,11 +100,13 @@ final class ResultRow: NSView {
 
     @objc private func deleteClicked() { onDelete?() }
     @objc private func editClicked() { onEdit?() }
+    @objc private func duplicateClicked() { onDuplicate?() }
 
     override func menu(for event: NSEvent) -> NSMenu? {
         guard onDelete != nil else { return nil }
         let menu = NSMenu()
         if onEdit != nil { menu.addItem(withTitle: "Edit Windows…", action: #selector(editClicked), keyEquivalent: "").target = self }
+        if onDuplicate != nil { menu.addItem(withTitle: "Duplicate Room", action: #selector(duplicateClicked), keyEquivalent: "").target = self }
         menu.addItem(.separator())
         menu.addItem(withTitle: "Delete Room", action: #selector(deleteClicked), keyEquivalent: "").target = self
         return menu

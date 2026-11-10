@@ -25,6 +25,7 @@ final class PaletteController: NSObject, NSTextFieldDelegate, NSWindowDelegate {
     var onAssignShortcut: (Room, Int) -> Void = { _, _ in }
     var onRemember: (Room) -> Void = { _ in }
     var onDelete: (Room) -> Void = { _ in }
+    var onDuplicate: (Room) -> Void = { _ in }
     /// Brings back the last deleted room; false when there's nothing to undo.
     var onUndoDelete: () -> Bool = { false }
     /// The palette closed without walking into a room.
@@ -230,6 +231,7 @@ final class PaletteController: NSObject, NSTextFieldDelegate, NSWindowDelegate {
                     self?.hide()
                     self?.onSave(room.name)
                 }
+                rows[index].onDuplicate = { [weak self] in self?.onDuplicate(room) }
             }
 
             // Any name can become a room: pick its windows. An existing name edits that room.

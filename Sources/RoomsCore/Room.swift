@@ -63,6 +63,28 @@ public struct Room: Codable, Hashable, Sendable, Identifiable {
         return map
     }
 
+    /// A copy to tweak into another room: the same windows, apps and layouts under a
+    /// new name ("Design Copy", then "Design Copy 2"…) and id, neither clashing with
+    /// `rooms`. Aliases and the direct key stay with the original, so typing or ⌃⌥n
+    /// still reaches exactly one room.
+    public func duplicated(among rooms: [Room]) -> Room {
+        let names = Set(rooms.map { Matcher.fold($0.name) })
+        let ids = Set(rooms.map(\.id))
+        var copy = self
+        copy.aliases = []
+        copy.shortcut = nil
+        var n = 1
+        while true {
+            let candidate = n == 1 ? "\(name) Copy" : "\(name) Copy \(n)"
+            if !names.contains(Matcher.fold(candidate)) && !ids.contains(Room.slug(candidate)) {
+                copy.name = candidate
+                copy.id = Room.slug(candidate)
+                return copy
+            }
+            n += 1
+        }
+    }
+
     public static func slug(_ s: String) -> String {
         Matcher.fold(s)
             .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
