@@ -74,18 +74,4 @@ enum AX {
         AXUIElementPerformAction(el, kAXRaiseAction as CFString)
     }
 
-    /// The window-server ID for an AX window, via the private `_AXUIElementGetWindow`
-    /// that every macOS window manager uses. Looked up at runtime so a future macOS
-    /// without it degrades to title matching instead of crashing.
-    static func windowID(_ el: AXUIElement) -> CGWindowID? {
-        guard let getWindow = getWindowFunction else { return nil }
-        var id: CGWindowID = 0
-        return getWindow(el, &id) == .success && id != 0 ? id : nil
-    }
-
-    private typealias GetWindowFunction = @convention(c) (AXUIElement, UnsafeMutablePointer<CGWindowID>) -> AXError
-    private static let getWindowFunction: GetWindowFunction? = {
-        guard let handle = dlopen(nil, RTLD_NOW), let symbol = dlsym(handle, "_AXUIElementGetWindow") else { return nil }
-        return unsafeBitCast(symbol, to: GetWindowFunction.self)
-    }()
 }
