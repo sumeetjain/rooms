@@ -21,6 +21,12 @@ public struct Room: Codable, Hashable, Sendable, Identifiable {
     /// A layout chosen for one display (by display UUID), like Moom's per-monitor
     /// layouts: Stack on the laptop, Focus on the monitor. Falls back to `layout`.
     public var layoutByDisplay: [String: LayoutKind]
+    /// The displays (UUIDs, sorted) that `windows`, `apps` and `layoutByDisplay` were
+    /// saved on: the room's setup in use. Empty when unknown (a hand-written room).
+    public var setupDisplays: [String]
+    /// The room's setups for other sets of displays (the laptop alone, the office),
+    /// swapped in by `resolved(for:)` when those displays are the connected ones.
+    public var otherSetups: [Setup]
 
     public func layout(on display: String?) -> LayoutKind {
         display.flatMap { layoutByDisplay[$0] } ?? layout
@@ -35,6 +41,56 @@ public struct Room: Codable, Hashable, Sendable, Identifiable {
         self.windows = windows
         self.layout = layout
         self.layoutByDisplay = [:]
+        self.setupDisplays = []
+        self.otherSetups = []
+    }
+
+    // MARK: Setups
+
+    /// The setup in use, as one value.
+    public var setup: Setup {
+        get { Setup(displays: setupDisplays, windows: windows, apps: apps, layoutByDisplay: layoutByDisplay) }
+        set {
+            setupDisplays = newValue.displays
+            windows = newValue.windows
+            apps = newValue.apps
+            layoutByDisplay = newValue.layoutByDisplay
+        }
+    }
+
+    /// Every setup, the one in use first.
+    public var setups: [Setup] { [setup] + otherSetups }
+
+    /// The room with the setup for `connected` in use: the one saved on exactly these
+    /// displays, else the one sharing most of them (a tie goes to the bigger setup).
+    /// A room with one setup is returned as is.
+    public func resolved(for connected: [String]) -> Room {
+        guard !otherSetups.isEmpty else { return self }
+        let now = Set(connected)
+        func rank(_ s: Setup) -> (Int, Int, Int) {
+            let shared = Set(s.displays).intersection(now).count
+            return (Set(s.displays) == now ? 1 : 0, shared, s.displays.count)
+        }
+        let all = setups
+        var bestIndex = 0
+        for i in all.indices where rank(all[i]) > rank(all[bestIndex]) { bestIndex = i }
+        guard bestIndex != 0 else { return self }
+        var room = self
+        room.setup = all[bestIndex]
+        room.otherSetups = all.enumerated().filter { $0.offset != bestIndex }.map(\.element)
+        return room
+    }
+
+    /// Before learning windows on `connected`: when the setup in use was saved on
+    /// other displays, it steps aside (kept, unless empty) and an empty setup for
+    /// these displays takes its place. Saving never overwrites another desk's setup.
+    public mutating func beginSetup(for connected: [String]) {
+        let displays = Set(connected).sorted()
+        guard Set(setupDisplays) != Set(displays) else { return }
+        let current = setup
+        otherSetups.removeAll { Set($0.displays) == Set(displays) }
+        if !current.windows.isEmpty || !current.apps.isEmpty { otherSetups.insert(current, at: 0) }
+        setup = Setup(displays: displays, windows: [], apps: [], layoutByDisplay: [:])
     }
 
     // Only `name` is required, so rooms.json stays easy to write by hand.
@@ -45,11 +101,39 @@ public struct Room: Codable, Hashable, Sendable, Identifiable {
         aliases = try c.decodeIfPresent([String].self, forKey: .aliases) ?? []
         kind = try c.decodeIfPresent(String.self, forKey: .kind)
         about = try c.decodeIfPresent(String.self, forKey: .about)
-        apps = try c.decodeIfPresent([AppRef].self, forKey: .apps) ?? []
-        windows = try c.decodeIfPresent([WindowSlot].self, forKey: .windows) ?? []
         layout = try c.decodeIfPresent(LayoutKind.self, forKey: .layout) ?? .auto
         shortcut = try c.decodeIfPresent(Int.self, forKey: .shortcut)
-        layoutByDisplay = try c.decodeIfPresent([String: LayoutKind].self, forKey: .layoutByDisplay) ?? [:]
+        if var setups = try c.decodeIfPresent([Setup].self, forKey: .setups), !setups.isEmpty {
+            let active = setups.removeFirst()
+            setupDisplays = active.displays
+            windows = active.windows
+            apps = active.apps
+            layoutByDisplay = active.layoutByDisplay
+            otherSetups = setups
+        } else {
+            // A room written before setups: its windows say which displays it was saved on.
+            windows = try c.decodeIfPresent([WindowSlot].self, forKey: .windows) ?? []
+            apps = try c.decodeIfPresent([AppRef].self, forKey: .apps) ?? []
+            layoutByDisplay = try c.decodeIfPresent([String: LayoutKind].self, forKey: .layoutByDisplay) ?? [:]
+            setupDisplays = Set(windows.compactMap(\.display)).sorted()
+            otherSetups = []
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(name, forKey: .name)
+        try c.encode(aliases, forKey: .aliases)
+        try c.encodeIfPresent(kind, forKey: .kind)
+        try c.encodeIfPresent(about, forKey: .about)
+        try c.encode(layout, forKey: .layout)
+        try c.encodeIfPresent(shortcut, forKey: .shortcut)
+        try c.encode(setups, forKey: .setups)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, aliases, kind, about, apps, windows, layout, shortcut, layoutByDisplay, setups
     }
 
     /// Rooms that get ⌃⌥1…9: the ones you gave a number, or else the first nine.
@@ -89,6 +173,31 @@ public struct Room: Codable, Hashable, Sendable, Identifiable {
         Matcher.fold(s)
             .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
             .joined(separator: "-")
+    }
+}
+
+/// A room's windows, apps and layouts for one set of displays. A room has one per
+/// desk it was saved on: the three screens at work, the laptop alone.
+public struct Setup: Codable, Hashable, Sendable {
+    /// Display UUIDs, sorted. Empty when unknown.
+    public var displays: [String]
+    public var windows: [WindowSlot]
+    public var apps: [AppRef]
+    public var layoutByDisplay: [String: LayoutKind]
+
+    public init(displays: [String], windows: [WindowSlot], apps: [AppRef], layoutByDisplay: [String: LayoutKind]) {
+        self.displays = displays
+        self.windows = windows
+        self.apps = apps
+        self.layoutByDisplay = layoutByDisplay
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        displays = try c.decodeIfPresent([String].self, forKey: .displays) ?? []
+        windows = try c.decodeIfPresent([WindowSlot].self, forKey: .windows) ?? []
+        apps = try c.decodeIfPresent([AppRef].self, forKey: .apps) ?? []
+        layoutByDisplay = try c.decodeIfPresent([String: LayoutKind].self, forKey: .layoutByDisplay) ?? [:]
     }
 }
 
