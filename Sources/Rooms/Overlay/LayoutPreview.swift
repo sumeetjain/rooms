@@ -14,6 +14,8 @@ final class LayoutPreview {
         let icon: NSImage?
         let title: String
         let subtitle: String
+        /// A window that isn't open: drawn faint, where it would go.
+        var dimmed = false
     }
 
     private var windows: [NSWindow] = []
@@ -41,11 +43,13 @@ final class LayoutPreview {
                 let clear = avoiding.map { $0.offsetBy(dx: -global.minX, dy: -global.minY) }
                 seen.insert(card.id)
 
+                let alpha: CGFloat = card.dimmed ? 0.4 : 1
                 if let view = existing[card.id], !firstShow {
                     // Same window, new place: glide there.
                     container.addSubview(view, positioned: .above, relativeTo: nil) // keep front-to-back order
                     if reduceMotion {
                         view.frame = local
+                        view.alphaValue = alpha
                         view.fit(avoiding: clear)
                     } else {
                         NSAnimationContext.runAnimationGroup { ctx in
@@ -53,6 +57,7 @@ final class LayoutPreview {
                             ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 0, 0, 1)
                             ctx.allowsImplicitAnimation = true
                             view.animator().frame = local
+                            view.animator().alphaValue = alpha
                             view.fit(avoiding: clear)
                             view.layoutSubtreeIfNeeded()
                         }
@@ -63,12 +68,13 @@ final class LayoutPreview {
                     view.fit(avoiding: clear)
                     container.addSubview(view)
                     existing[card.id] = view
+                    view.alphaValue = alpha
                     if !reduceMotion {
                         view.alphaValue = 0
                         NSAnimationContext.runAnimationGroup { ctx in
                             ctx.duration = 0.2
                             ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 0, 0, 1)
-                            view.animator().alphaValue = 1
+                            view.animator().alphaValue = alpha
                         }
                     }
                 }

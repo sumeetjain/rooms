@@ -323,13 +323,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             preview.hide()
             return
         }
-        let placements = engine.plan(room, in: snap).placements
-        guard !placements.isEmpty else {
+        // The room as saved: a window that isn't open right now still shows its place,
+        // faint. Walking in opens it (its app is launched or asked for a window).
+        let planned = engine.plan(room, in: snap, asConfigured: true)
+        guard !planned.placements.isEmpty || !planned.ghosts.isEmpty else {
             preview.hide()
             return
         }
         // Drawn back to front: the room's first windows end up on top, as they will for real.
-        preview.show(placements.reversed().map { p in
+        let ghosts = planned.ghosts.map { g in
+            LayoutPreview.Card(id: "ghost|\(g.slot.bundleID)|\(g.slot.title)", rect: g.rect, icon: icon(for: g.slot.bundleID),
+                               title: g.slot.app ?? g.slot.bundleID, subtitle: g.slot.title, dimmed: true)
+        }
+        let open = planned.placements.reversed().map { p in
             LayoutPreview.Card(
                 id: p.window.windowID.map { String($0) } ?? "\(p.window.bundleID)|\(p.window.title)",
                 rect: p.rect,
@@ -337,7 +343,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 title: p.window.app.localizedName ?? p.slot.app ?? "",
                 subtitle: p.window.title
             )
-        }, avoiding: palette.frame)
+        }
+        preview.show(ghosts + open, avoiding: palette.frame)
     }
 
     private func setLayout(_ kind: LayoutKind, for room: Room) {

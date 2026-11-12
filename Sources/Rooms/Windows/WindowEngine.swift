@@ -215,11 +215,19 @@ final class WindowEngine {
         let fallbackReason: String?
     }
 
+    /// A closed window's place in the room, for the preview.
+    struct Ghost {
+        let slot: WindowSlot
+        let rect: CGRect
+    }
+
     struct Plan {
         let placements: [Placement]
         let missing: [WindowSlot]
         let effectiveLayout: LayoutKind
         let layoutFallbackReason: String?
+        /// Only with `asConfigured`: where each missing window would go.
+        var ghosts: [Ghost] = []
     }
 
     func snapshot() -> Snapshot { Snapshot(screens: ScreenInfo.all(), windows: inventory()) }
@@ -229,11 +237,13 @@ final class WindowEngine {
     /// unless `preferredScreen` says otherwise), wherever they were before. A room
     /// saved across several connected displays spreads back over them instead, each
     /// display laid out on its own; windows whose display is gone join the one you're on.
-    func plan(_ room: Room, in snap: Snapshot, on preferredScreen: Int? = nil) -> Plan {
+    /// `asConfigured` (the preview): every window of the room is laid out, open or
+    /// not, so the picture shows the room as saved; closed ones come back as `ghosts`.
+    func plan(_ room: Room, in snap: Snapshot, on preferredScreen: Int? = nil, asConfigured: Bool = false) -> Plan {
         let assignment = assign(room, to: snap.windows)
         guard !snap.screens.isEmpty else { return Plan(placements: [], missing: room.windows, effectiveLayout: .auto, layoutFallbackReason: "no display is available") }
         let here = snap.screens[min(preferredScreen ?? activeScreenIndex(in: snap.screens), snap.screens.count - 1)]
-        let found = room.windows.indices.filter { assignment[$0] != nil }
+        let found = room.windows.indices.filter { asConfigured || assignment[$0] != nil }
         var rects: [Int: CGRect] = [:]
         var effective = room.layout(on: here.uuid)
         var fallbackReason: String?
@@ -256,7 +266,11 @@ final class WindowEngine {
             return Placement(slot: room.windows[i], rect: rect, window: snap.windows[w])
         }
         let missing = room.windows.indices.filter { assignment[$0] == nil }.map { room.windows[$0] }
-        return Plan(placements: placements, missing: missing, effectiveLayout: effective, layoutFallbackReason: fallbackReason)
+        let ghosts = asConfigured ? room.windows.indices.compactMap { i -> Ghost? in
+            guard assignment[i] == nil, let rect = rects[i] else { return nil }
+            return Ghost(slot: room.windows[i], rect: rect)
+        } : []
+        return Plan(placements: placements, missing: missing, effectiveLayout: effective, layoutFallbackReason: fallbackReason, ghosts: ghosts)
     }
 
     /// Where a room's open windows go with `kind`. A layout chosen on another screen,
@@ -421,6 +435,19 @@ final class WindowEngine {
         var planned = plan(room, in: snap)
         var placements = planned.placements
         var missing = planned.missing
+        // An app that's running without the room's window (Zoom between meetings, a
+        // home window that was closed) is asked to open one, as clicking it in the
+        // Dock would; its window is then waited for like a launched app's.
+        var launched = launched
+        for bundleID in Set(missing.map(\.bundleID)) where !launched.contains(bundleID) {
+            guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first,
+                  let url = app.bundleURL else { continue }
+            let config = NSWorkspace.OpenConfiguration()
+            config.activates = false
+            _ = try? await NSWorkspace.shared.openApplication(at: url, configuration: config)
+            launched.insert(bundleID)
+            Log.file("  asked \(app.localizedName ?? bundleID) to open a window")
+        }
         // Just-unhidden apps can take a moment to report their windows again.
         let waitingForLaunch = { missing.contains { launched.contains($0.bundleID) } }
         for _ in 0..<(launched.isEmpty ? 5 : 40) where !missing.isEmpty && (!hidden.isEmpty || waitingForLaunch()) {
