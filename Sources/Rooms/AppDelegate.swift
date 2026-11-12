@@ -96,6 +96,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         palette.shortcutFor = { [unowned self] room in Room.withShortcuts(rooms).first { $0.value.id == room.id }?.key }
         palette.onAssignShortcut = { [unowned self] room, n in assignShortcut(n, to: room) }
         palette.onDelete = { [unowned self] room in deleteRoom(room) }
+        palette.onDuplicate = { [unowned self] room in duplicateRoom(room) }
         palette.onUndoDelete = { [unowned self] in
             guard lastDeleted != nil else { return false }
             undoDelete()
@@ -472,6 +473,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     /// Removes a room. Its windows stay exactly where they are; Undo brings it back.
+    /// Copies a room ("Design Copy") and opens its picker, so you can name it and
+    /// change its windows straight away. Cancel keeps the copy; delete it if unwanted.
+    private func duplicateRoom(_ room: Room) {
+        let copy = room.duplicated(among: rooms)
+        var all = rooms
+        all.insert(copy, at: (all.firstIndex { $0.id == room.id } ?? all.count - 1) + 1)
+        do {
+            try RoomStore.save(all, to: RoomStore.defaultURL)
+            rooms = all
+            registerRoomKeys()
+            Log.file("Duplicated room \(room.name) as \(copy.name)")
+            openPicker(name: copy.name)
+        } catch {
+            alert("Couldn't duplicate the room", error.localizedDescription)
+        }
+    }
+
     private func deleteRoom(_ room: Room) {
         var all = rooms
         guard let i = all.firstIndex(where: { $0.id == room.id }) else { return }
