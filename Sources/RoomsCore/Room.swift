@@ -82,14 +82,16 @@ public struct Room: Codable, Hashable, Sendable, Identifiable {
     }
 
     /// Before learning windows on `connected`: when the setup in use was saved on
-    /// other displays, it steps aside (kept, unless empty) and an empty setup for
-    /// these displays takes its place. Saving never overwrites another desk's setup.
+    /// other displays, it steps aside (kept, unless empty or from unknown displays) and
+    /// an empty setup for these displays takes its place. Saving never overwrites
+    /// another desk's setup.
     public mutating func beginSetup(for connected: [String]) {
         let displays = Set(connected).sorted()
         guard Set(setupDisplays) != Set(displays) else { return }
         let current = setup
         otherSetups.removeAll { Set($0.displays) == Set(displays) }
-        if !current.windows.isEmpty || !current.apps.isEmpty { otherSetups.insert(current, at: 0) }
+        let worthKeeping = !current.displays.isEmpty && (!current.windows.isEmpty || !current.apps.isEmpty)
+        if worthKeeping { otherSetups.insert(current, at: 0) }
         setup = Setup(displays: displays, windows: [], apps: [], layoutByDisplay: [:])
     }
 

@@ -107,3 +107,11 @@ private var twoSetups: Room {
     #expect(copy.otherSetups == twoSetups.otherSetups)
     #expect(copy.setupDisplays == deskDisplays)
 }
+
+@Test func aSetupFromUnknownDisplaysIsReplacedNotKept() {
+    // A hand-written room (apps only, no displays) becomes this desk's setup outright.
+    var room = Room(name: "Morning", apps: [AppRef("com.apple.mail")])
+    room.beginSetup(for: ["LAPTOP"])
+    #expect(room.setupDisplays == ["LAPTOP"])
+    #expect(room.otherSetups.isEmpty)
+}

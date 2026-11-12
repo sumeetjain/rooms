@@ -38,7 +38,7 @@ Rooms needs **Accessibility** access to move windows. Turn it on in **System Set
 3. Click the windows that belong in it. The number on a card is its place in the layout, and 1 is the main window. Then **Create Room**.
 4. **Press Tab to change the layout.** In ⌥Space, select the room and press Tab (⇧Tab goes back): the preview shows each layout that fits your screen, and the room remembers the one you pick.
 
-The windows come to the screen you're on and lay themselves out. A room made from windows on several displays comes back across those displays, each laid out on its own. From then on, ⌥Space and the room's name (or ⌃⌥1–9) brings it back. **Getting Started** in the menu shows these steps again.
+The windows come to the screen you're on and lay themselves out. A room made from windows on several displays comes back across those displays, each laid out on its own. A room also keeps one setup per desk: save it on the laptop alone and it remembers that set of windows for the laptop, without touching what it does at the desk; walking in uses the setup for the displays connected now. From then on, ⌥Space and the room's name (or ⌃⌥1–9) brings it back. **Getting Started** in the menu shows these steps again.
 
 ## Around the rooms
 

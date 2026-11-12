@@ -219,7 +219,10 @@ final class PaletteController: NSObject, NSTextFieldDelegate, NSWindowDelegate {
                 let count = room.windows.isEmpty
                     ? (room.apps.isEmpty ? "No apps yet" : (room.apps.count == 1 ? "1 app" : "\(room.apps.count) apps"))
                     : (room.windows.count == 1 ? "1 window" : "\(room.windows.count) windows")
-                let detail = [room.kind, count].compactMap { $0 }.joined(separator: " · ")
+                // A room with a setup per desk says which one this is.
+                let desk: String? = room.otherSetups.isEmpty || room.setupDisplays.isEmpty ? nil
+                    : (room.setupDisplays.count == 1 ? "1 display" : "\(room.setupDisplays.count) displays")
+                let detail = [room.kind, count, desk].compactMap { $0 }.joined(separator: " · ")
                 var bundles: [String] = []
                 for id in room.windows.map(\.bundleID) + room.apps.map(\.bundleID) where !bundles.contains(id) { bundles.append(id) }
                 items.append(.room(room))
