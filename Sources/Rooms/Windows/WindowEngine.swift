@@ -57,6 +57,7 @@ final class WindowEngine {
     /// of hidden apps (which report the AXDialog subrole while hidden).
     func inventory() -> [LiveWindow] {
         var result: [LiveWindow] = []
+        let numbers = WindowNumbers.current()
         for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular && app != .current {
             guard let bundleID = app.bundleIdentifier else { continue }
             let appElement = AX.app(app.processIdentifier)
@@ -79,7 +80,7 @@ final class WindowEngine {
                     || (subrole == kAXDialogSubrole as String && (app.isHidden || minimized || hasMinimizeButton))
                 guard isStandard, let frame = AX.frame(el), frame.width >= 100, frame.height >= 60 else { continue }
                 result.append(LiveWindow(
-                    element: el, app: app, bundleID: bundleID, windowID: AX.windowID(el),
+                    element: el, app: app, bundleID: bundleID, windowID: numbers.id(forWindowOf: app.processIdentifier, at: frame),
                     title: AX.attribute(el, kAXTitleAttribute) ?? "", frame: frame, isMinimized: minimized
                 ))
             }
@@ -667,7 +668,7 @@ final class WindowEngine {
         guard let app = NSWorkspace.shared.frontmostApplication, app != .current, let bundleID = app.bundleIdentifier else { return nil }
         let appElement = AX.app(app.processIdentifier)
         guard let el: AXUIElement = AX.attribute(appElement, kAXFocusedWindowAttribute), let frame = AX.frame(el) else { return nil }
-        return LiveWindow(element: el, app: app, bundleID: bundleID, windowID: AX.windowID(el),
+        return LiveWindow(element: el, app: app, bundleID: bundleID, windowID: WindowNumbers.current().id(forWindowOf: app.processIdentifier, at: frame),
                           title: AX.attribute(el, kAXTitleAttribute) ?? "", frame: frame, isMinimized: false)
     }
 
