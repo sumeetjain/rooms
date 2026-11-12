@@ -116,6 +116,9 @@ final class WindowEngine {
         let groups = DisplayGroups.split(displays: indices.map { $0.map { screens[$0].uuid } },
                                          connected: screens.map(\.uuid), fallback: screens[s].uuid)
         var updated = room
+        // Saving on another set of displays (the laptop alone) starts that desk's own
+        // setup; the one saved at the desk waits, untouched, for its displays.
+        updated.beginSetup(for: screens.map(\.uuid))
         var order: [Int] = []                 // indices into `wins`, main window first
         var cellByWindow: [Int: GridCell] = [:]
         var reading = Arrangement.Reading(kind: .auto, order: Array(wins.indices), distance: .infinity)
@@ -141,8 +144,8 @@ final class WindowEngine {
         // Match by the same title/window-ID rules used everywhere else. Comparing only
         // live window IDs would mistake a relaunched window for a closed one, while a
         // genuinely closed slot remains here with its saved My Layout cell intact.
-        let matchedSlots = Set(assign(room, to: wins).keys)
-        let kept = keepOrder ? [] : room.windows.enumerated().compactMap { index, slot in
+        let matchedSlots = Set(assign(updated, to: wins).keys)
+        let kept = keepOrder ? [] : updated.windows.enumerated().compactMap { index, slot in
             matchedSlots.contains(index) ? nil : slot
         }
         var learned = slots(for: ordered)

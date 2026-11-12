@@ -190,7 +190,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func reloadRooms() {
         do {
-            rooms = try RoomStore.loadOrSeed(at: RoomStore.defaultURL, seed: { [] })
+            let connected = ScreenInfo.all().map(\.uuid)
+            rooms = try RoomStore.loadOrSeed(at: RoomStore.defaultURL, seed: { [] }).map { $0.resolved(for: connected) }
             loadError = nil
             registerRoomKeys()   // rooms.json may have been edited by hand
         } catch {
@@ -297,6 +298,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard screens != lastScreens else { return }
         let added = screens.count > lastScreens.count
         lastScreens = screens
+        // Each room's setup for these displays takes over (the laptop's alone, the desk's).
+        let connected = ScreenInfo.all().map(\.uuid)
+        rooms = rooms.map { $0.resolved(for: connected) }
         displayWork?.cancel()
         let work = DispatchWorkItem { [unowned self] in
             inTurn {
